@@ -4,10 +4,9 @@
 #include "pch.h"
 #include "framework.h"
 
-#include <unordered_set>
+#include <forward_list>
 #include <memory>
 #include <string>
-#include <mutex>
 
 #include <sdk/public/steam/steam_api.h>
 #include <sdk/public/steam/steam_gameserver.h>
@@ -71,6 +70,8 @@ std::unique_ptr<CSteamAchievements> g_steamAchievements;
 
 class CSteamAchievements
 {
+    template<typename T>
+    using list = std::forward_list<T>;
 
 
 private:
@@ -79,14 +80,11 @@ private:
     int m_iNumAchievements; // The number of Achievements
     bool m_bInitialized; // Have we called Request stats and received the callback?
 
-    std::recursive_mutex            pendings_mtx;
-    std::unordered_set<const char*> pendings;
+    list<const char*> pendings;
 
 
     void setPendingAchievements()
     {
-        std::unique_lock<decltype(pendings_mtx)> lock(pendings_mtx);
-
         if (pendings.empty())
             return;
 
@@ -140,10 +138,7 @@ public:
     {
         // Have we received a call back from Steam yet?
         if (!m_bInitialized) {
-            {
-                std::unique_lock<decltype(pendings_mtx)> lock(pendings_mtx);
-                pendings.emplace(ID);
-            }
+            pendings.push_front(ID);
             OutputDebugStringA("## SetAchievement pending push front in progress...not received a callback from Steam\n");
             return false; 
         }        
@@ -266,10 +261,10 @@ extern "C" {
         bool ret =
             SteamAPI_RestartAppIfNecessary(id);
 
-        /*if (ret)
+        if (ret)
             OutputDebugStringA("steam wrapper, ret true");
         else
-            OutputDebugStringA("steam wrapper, ret false");*/
+            OutputDebugStringA("steam wrapper, ret false");
 
         return ret;
     }
